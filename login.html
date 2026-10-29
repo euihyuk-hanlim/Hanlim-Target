@@ -293,7 +293,7 @@
 
     // EmailJS 초기화
     if (typeof emailjs !== 'undefined') {
-        emailjs.init(EMAILJS_PUBLIC_KEY);
+        emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
     }
 
     // ── 직원 데이터 ──────────────────────────────────────────────────
@@ -358,7 +358,7 @@
                     to_email: email,
                     to_name:  (employeeMap[email] && employeeMap[email].name) || email,
                     passcode: generatedCode
-                });
+                }, { publicKey: EMAILJS_PUBLIC_KEY });
                 showMessage('✅ 인증번호가 ' + email + '로 전송되었습니다', 'success');
             } catch(err) {
                 showMessage('이메일 전송 실패: ' + err.text, 'error');
