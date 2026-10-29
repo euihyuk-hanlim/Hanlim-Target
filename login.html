@@ -212,7 +212,7 @@
         <div id="step1" class="step">
             <div class="form-group">
                 <label for="email">한림 이메일 주소</label>
-                <input type="email" id="email" placeholder="name@hanlim.com" required>
+                <input type="email" id="email" placeholder="name@hanlim.com" required onkeydown="if(event.key==='Enter') sendAuthCode()">
             </div>
             <button class="btn-send" onclick="sendAuthCode()">인증번호 전송</button>
             <div class="info-text">
@@ -225,12 +225,12 @@
             <div class="form-group">
                 <label>인증번호 입력</label>
                 <div class="code-input" id="codeInput">
-                    <input type="text" maxlength="1" inputmode="text">
-                    <input type="text" maxlength="1" inputmode="text">
-                    <input type="text" maxlength="1" inputmode="text">
-                    <input type="text" maxlength="1" inputmode="text">
-                    <input type="text" maxlength="1" inputmode="text">
-                    <input type="text" maxlength="1" inputmode="text">
+                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*">
+                    <input type="text" maxlength="1" inputmode="numeric" pattern="[0-9]*">
                 </div>
                 <div class="timer">
                     남은 시간: <span id="timerText">10:00</span>
@@ -344,7 +344,7 @@
             document.getElementById('step1').classList.add('hidden');
             document.getElementById('step2').classList.remove('hidden');
             startAuthCodeTimer(600);
-            document.querySelector('.code-input input').focus();
+            setupCodeInputs(); document.querySelector('.code-input input').focus();
             return;
         }
 
@@ -357,8 +357,9 @@
                 await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
                     to_email: email,
                     to_name:  (employeeMap[email] && employeeMap[email].name) || email,
-                    passcode: generatedCode
-                }, { publicKey: EMAILJS_PUBLIC_KEY });
+                    passcode: generatedCode,
+                    message:  generatedCode
+                });
                 showMessage('✅ 인증번호가 ' + email + '로 전송되었습니다', 'success');
             } catch(err) {
                 showMessage('이메일 전송 실패: ' + err.text, 'error');
@@ -373,7 +374,7 @@
         document.getElementById('step1').classList.add('hidden');
         document.getElementById('step2').classList.remove('hidden');
         startAuthCodeTimer(600);
-        document.querySelector('.code-input input').focus();
+        setupCodeInputs(); document.querySelector('.code-input input').focus();
     }
 
     // ── Step 2: 인증번호 확인 ──────────────────────────────────────────
@@ -455,7 +456,43 @@
         document.getElementById('message').classList.add('hidden');
     }
 
-    // ── 타이머 ────────────────────────────────────────────────────────
+    // ── 인증번호 입력박스 초기화 ──────────────────────────────────────
+    function setupCodeInputs() {
+        const inputs = document.querySelectorAll('.code-input input');
+        inputs.forEach((input, idx) => {
+            // 붙여넣기: 6자리 한번에 입력
+            input.addEventListener('paste', function(e) {
+                e.preventDefault();
+                const pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
+                if (pasted.length === 6) {
+                    inputs.forEach((inp, i) => { inp.value = pasted[i] || ''; });
+                    inputs[5].focus();
+                    // 자동 로그인
+                    setTimeout(() => verifyAuthCode(), 100);
+                }
+            });
+            // 숫자 입력 시 다음 칸으로
+            input.addEventListener('input', function() {
+                this.value = this.value.replace(/\D/g, '');
+                if (this.value.length === 1 && idx < 5) {
+                    inputs[idx + 1].focus();
+                }
+                // 6자리 다 채워지면 자동 로그인
+                const all = Array.from(inputs).map(i => i.value).join('');
+                if (all.length === 6) setTimeout(() => verifyAuthCode(), 100);
+            });
+            // 백스페이스 이전 칸으로
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Backspace' && !this.value && idx > 0) {
+                    inputs[idx - 1].focus();
+                }
+                // Enter키 로그인
+                if (e.key === 'Enter') verifyAuthCode();
+            });
+        });
+    }
+
+        // ── 타이머 ────────────────────────────────────────────────────────
     function startAuthCodeTimer(seconds) {
         let remaining = seconds;
         updateTimerDisplay(remaining);
