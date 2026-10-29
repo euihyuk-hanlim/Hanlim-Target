@@ -8,7 +8,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 <style>
-<style>
 :root{
   --font:Pretendard,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   --pri:#2563eb;
@@ -254,8 +253,8 @@ function changePassword() {
 
 <div class="tabs">
   <button class="tab on" onclick="switchTab(event, 'dashboard')">📊 대시보드</button>
-  <button class="tab" onclick="switchTab(event, 'edit')">⚙️ 입력</button>
-  <button class="tab" onclick="switchTab(event, 'logs')">📋 방문 로그</button>
+  <button class="tab" id="tabEdit" onclick="switchTab(event, 'edit')" style="display:none">⚙️ 입력</button>
+  <button class="tab" id="tabLogs" onclick="switchTab(event, 'logs')" style="display:none">📋 방문 로그</button>
 </div>
 
 <div class="content">
@@ -824,6 +823,13 @@ window.addEventListener('DOMContentLoaded', function() {
             if (adminBtn) adminBtn.style.display = 'inline-block';
             const csvSec = document.getElementById('csvUploadSec');
             if (csvSec) csvSec.style.display = 'block';
+            // 관리자 탭 표시
+            const tabEdit = document.getElementById('tabEdit');
+            if (tabEdit) tabEdit.style.display = 'inline-block';
+            const tabLogs = document.getElementById('tabLogs');
+            if (tabLogs) tabLogs.style.display = 'inline-block';
+            // 방문 로그 로드
+            loadVisitLogs();
         }
     }
 
