@@ -288,10 +288,10 @@
         db = firebase.firestore();
     } catch(e) {
         console.warn('Firebase 초기화 실패 (설정값 확인 필요):', e.message);
-
-    // EmailJS 초기화 (한 번만)
-    emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
     }
+
+    // EmailJS 초기화 (Firebase와 별개로 항상 실행)
+    emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
 
     
     // ── 직원 데이터 ──────────────────────────────────────────────────
