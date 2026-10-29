@@ -262,7 +262,7 @@ function changePassword() {
   <!-- 대시보드 -->
   <div class="pane on" id="pane-dashboard">
     <div class="sec">
-      <div class="notice">📍 10월 목표 조정: 한림 목표가 14억 감소되었습니다. (기본목표 264억 → 수정목표 250억)</div>
+      <div class="notice" id="notice-bar" style="display:none"></div>
 
       <div class="sum-row">
         <div class="sum-c">
@@ -486,18 +486,48 @@ function changePassword() {
       <div class="sttl">월별 목표 설정 (원 단위)</div>
       <div class="goal-g">
         <div class="goal-c">
-          <div class="goal-c-t">한림 (제약+MS)</div>
-          <div class="goal-r"><label>목표</label><input type="number" id="goal_hanlim" placeholder="0"></div>
-        </div>
-        <div class="goal-c">
-          <div class="goal-c-t">화이자</div>
-          <div class="goal-r"><label>목표</label><input type="number" id="goal_pfizer" placeholder="0"></div>
+          <div class="goal-c-t">한림 (제약+MS+화이자)</div>
+          <div class="goal-r">
+            <label>기본목표</label>
+            <span id="goal_hanlim_base_disp" style="font-weight:700;color:#2563eb;font-size:15px">-</span>
+          </div>
+          <div class="goal-r">
+            <label>차감 목표 (원)</label>
+            <input type="number" id="adj_hanlim_cut" placeholder="0" oninput="syncAdj('hanlim','cut')">
+          </div>
+          <div class="goal-r">
+            <label>수정 목표 (원)</label>
+            <input type="number" id="adj_hanlim_mod" placeholder="0" oninput="syncAdj('hanlim','mod')">
+          </div>
+          <div class="goal-r">
+            <label>적용목표</label>
+            <span id="adj_hanlim_final" style="font-weight:700;color:#111827;font-size:15px">-</span>
+          </div>
         </div>
         <div class="goal-c">
           <div class="goal-c-t">눈건강</div>
-          <div class="goal-r"><label>목표</label><input type="number" id="goal_eyes" placeholder="0"></div>
+          <div class="goal-r">
+            <label>기본목표</label>
+            <span id="goal_eyes_base_disp" style="font-weight:700;color:#2563eb;font-size:15px">-</span>
+          </div>
+          <div class="goal-r">
+            <label>차감 목표 (원)</label>
+            <input type="number" id="adj_eyes_cut" placeholder="0" oninput="syncAdj('eyes','cut')">
+          </div>
+          <div class="goal-r">
+            <label>수정 목표 (원)</label>
+            <input type="number" id="adj_eyes_mod" placeholder="0" oninput="syncAdj('eyes','mod')">
+          </div>
+          <div class="goal-r">
+            <label>적용목표</label>
+            <span id="adj_eyes_final" style="font-weight:700;color:#111827;font-size:15px">-</span>
+          </div>
         </div>
       </div>
+      <input type="hidden" id="goal_hanlim">
+      <input type="hidden" id="goal_pfizer">
+      <input type="hidden" id="goal_eyes">
+
     </div>
 
     <div class="srow">
@@ -573,16 +603,140 @@ function switchTab(e, pane) {
   if (paneEl) paneEl.classList.add('on');
 }
 
-// 월 선택 시 목표값 로드
+function fmtWon(v) {
+  if (!v && v !== 0) return '0';
+  var cheon = Math.round(v / 1000).toLocaleString();
+  var eok = (v / 100000000).toFixed(2);
+  return cheon + '<span style="font-size:12px;color:#9ca3af"> ≈' + eok + '억</span>';
+}
+
+function getStoredMonthData(m) {
+  if (savedData[m]) return savedData[m];
+  try {
+    var stored = localStorage.getItem('savedData_' + m);
+    if (stored) {
+      savedData[m] = JSON.parse(stored);
+      return savedData[m];
+    }
+  } catch (e) {
+    console.warn('월별 저장 데이터 복원 실패:', e);
+  }
+  return null;
+}
+
+function clearMonthEntryFields() {
+  [
+    'ed_jeyak_jeonil','ed_jeyak_maljil','ed_jeyak_return',
+    'ed_ms_jeonil','ed_ms_maljil','ed_ms_return',
+    'ed_eyes_jeonil','ed_eyes_maljil','ed_eyes_return',
+    'eg_pt_hanrim','eg_pt_eyes',
+    'adj_hanlim_cut','adj_hanlim_mod','adj_eyes_cut','adj_eyes_mod'
+  ].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+
+function syncAdj(type, field) {
+  var m = parseInt(document.getElementById('month-select').value, 10);
+  var mg = monthGoals[m];
+  if (!mg) return;
+
+  var baseGoal = type === 'hanlim' ? ((mg.hanlim || 0) + (mg.pfizer || 0)) : (mg.eyes || 0);
+  var cutEl = document.getElementById('adj_' + type + '_cut');
+  var modEl = document.getElementById('adj_' + type + '_mod');
+  var finalEl = document.getElementById('adj_' + type + '_final');
+
+  if (!cutEl || !modEl || !finalEl) return;
+
+  if (field === 'cut') {
+    var cut = parseInt(cutEl.value, 10);
+    if (isNaN(cut)) {
+      modEl.value = '';
+      finalEl.innerHTML = fmtWon(baseGoal);
+      return;
+    }
+    cut = Math.max(0, Math.min(baseGoal, cut));
+    cutEl.value = cut;
+    modEl.value = baseGoal - cut;
+  } else {
+    var mod = parseInt(modEl.value, 10);
+    if (isNaN(mod)) {
+      cutEl.value = '';
+      finalEl.innerHTML = fmtWon(baseGoal);
+      return;
+    }
+    mod = Math.max(0, Math.min(baseGoal, mod));
+    modEl.value = mod;
+    cutEl.value = baseGoal - mod;
+  }
+
+  var effective = parseInt(modEl.value, 10);
+  if (isNaN(effective)) effective = baseGoal;
+  finalEl.innerHTML = fmtWon(effective);
+}
+
 function loadMonthGoals() {
-  const m = parseInt(document.getElementById('month-select').value);
-  const g = monthGoals[m];
-  if (g) {
-    document.getElementById('goal_hanlim').value = g.hanlim;
-    document.getElementById('goal_pfizer').value = g.pfizer;
-    document.getElementById('goal_eyes').value = g.eyes;
+  var m = parseInt(document.getElementById('month-select').value, 10);
+  var g = monthGoals[m];
+  if (!g) return;
+
+  document.getElementById('goal_hanlim').value = g.hanlim || 0;
+  document.getElementById('goal_pfizer').value = g.pfizer || 0;
+  document.getElementById('goal_eyes').value = g.eyes || 0;
+
+  var hanlimBase = (g.hanlim || 0) + (g.pfizer || 0);
+  var eyesBase = g.eyes || 0;
+
+  document.getElementById('goal_hanlim_base_disp').innerHTML = fmtWon(hanlimBase);
+  document.getElementById('goal_eyes_base_disp').innerHTML = fmtWon(eyesBase);
+  document.getElementById('adj_hanlim_final').innerHTML = fmtWon(hanlimBase);
+  document.getElementById('adj_eyes_final').innerHTML = fmtWon(eyesBase);
+
+  clearMonthEntryFields();
+
+  var d = getStoredMonthData(m);
+  if (!d) return;
+
+  [
+    ['ed_jeyak_jeonil','d_jeyak_jeonil'],['ed_jeyak_maljil','d_jeyak_maljil'],
+    ['ed_jeyak_return','d_jeyak_return'],['ed_ms_jeonil','d_ms_jeonil'],
+    ['ed_ms_maljil','d_ms_maljil'],['ed_ms_return','d_ms_return'],
+    ['ed_eyes_jeonil','d_eyes_jeonil'],['ed_eyes_maljil','d_eyes_maljil'],
+    ['ed_eyes_return','d_eyes_return'],['eg_pt_hanrim','pt_hanrim'],
+    ['eg_pt_eyes','pt_eyes']
+  ].forEach(function(pair) {
+    var el = document.getElementById(pair[0]);
+    if (el && d[pair[1]] !== undefined && d[pair[1]] !== null && d[pair[1]] !== 0) {
+      el.value = d[pair[1]];
+    }
+  });
+
+  if (d.adj_hanlim_cut || d.adj_hanlim_mod === 0 || d.adj_hanlim_mod) {
+    if (d.adj_hanlim_mod !== undefined && d.adj_hanlim_mod !== null && d.adj_hanlim_mod !== '') {
+      document.getElementById('adj_hanlim_mod').value = d.adj_hanlim_mod;
+      syncAdj('hanlim', 'mod');
+    } else if (d.adj_hanlim_cut !== undefined && d.adj_hanlim_cut !== null && d.adj_hanlim_cut !== '') {
+      document.getElementById('adj_hanlim_cut').value = d.adj_hanlim_cut;
+      syncAdj('hanlim', 'cut');
+    }
+  }
+
+  if (d.adj_eyes_cut || d.adj_eyes_mod === 0 || d.adj_eyes_mod) {
+    if (d.adj_eyes_mod !== undefined && d.adj_eyes_mod !== null && d.adj_eyes_mod !== '') {
+      document.getElementById('adj_eyes_mod').value = d.adj_eyes_mod;
+      syncAdj('eyes', 'mod');
+    } else if (d.adj_eyes_cut !== undefined && d.adj_eyes_cut !== null && d.adj_eyes_cut !== '') {
+      document.getElementById('adj_eyes_cut').value = d.adj_eyes_cut;
+      syncAdj('eyes', 'cut');
+    }
   }
 }
+
+
+// 월 선택 시 목표값 로드
+// loadMonthGoals replaced above
+
 
 // Ctrl+S로 자동 저장
 document.addEventListener('keydown', function(e) {
@@ -594,27 +748,30 @@ document.addEventListener('keydown', function(e) {
 
 // 저장 (팝업 제거)
 function saveNow() {
-  const m = parseInt(document.getElementById('month-select').value);
+  const m = parseInt(document.getElementById('month-select').value, 10);
   savedData[m] = {
-    d_jeyak_jeonil: parseInt(document.getElementById('ed_jeyak_jeonil').value) || 0,
-    d_jeyak_maljil: parseInt(document.getElementById('ed_jeyak_maljil').value) || 0,
-    d_jeyak_return: parseInt(document.getElementById('ed_jeyak_return').value) || 0,
-    d_ms_jeonil: parseInt(document.getElementById('ed_ms_jeonil').value) || 0,
-    d_ms_maljil: parseInt(document.getElementById('ed_ms_maljil').value) || 0,
-    d_ms_return: parseInt(document.getElementById('ed_ms_return').value) || 0,
-    d_eyes_jeonil: parseInt(document.getElementById('ed_eyes_jeonil').value) || 0,
-    d_eyes_maljil: parseInt(document.getElementById('ed_eyes_maljil').value) || 0,
-    d_eyes_return: parseInt(document.getElementById('ed_eyes_return').value) || 0,
-    pt_hanrim: parseInt(document.getElementById('eg_pt_hanrim').value) || 0,
-    pt_eyes: parseInt(document.getElementById('eg_pt_eyes').value) || 0,
-    goal_hanlim: parseInt(document.getElementById('goal_hanlim').value) || 0,
-    goal_pfizer: parseInt(document.getElementById('goal_pfizer').value) || 0,
-    goal_eyes: parseInt(document.getElementById('goal_eyes').value) || 0
+    d_jeyak_jeonil: parseInt(document.getElementById('ed_jeyak_jeonil').value, 10) || 0,
+    d_jeyak_maljil: parseInt(document.getElementById('ed_jeyak_maljil').value, 10) || 0,
+    d_jeyak_return: parseInt(document.getElementById('ed_jeyak_return').value, 10) || 0,
+    d_ms_jeonil: parseInt(document.getElementById('ed_ms_jeonil').value, 10) || 0,
+    d_ms_maljil: parseInt(document.getElementById('ed_ms_maljil').value, 10) || 0,
+    d_ms_return: parseInt(document.getElementById('ed_ms_return').value, 10) || 0,
+    d_eyes_jeonil: parseInt(document.getElementById('ed_eyes_jeonil').value, 10) || 0,
+    d_eyes_maljil: parseInt(document.getElementById('ed_eyes_maljil').value, 10) || 0,
+    d_eyes_return: parseInt(document.getElementById('ed_eyes_return').value, 10) || 0,
+    pt_hanrim: parseInt(document.getElementById('eg_pt_hanrim').value, 10) || 0,
+    pt_eyes: parseInt(document.getElementById('eg_pt_eyes').value, 10) || 0,
+    goal_hanlim: parseInt(document.getElementById('goal_hanlim').value, 10) || 0,
+    goal_pfizer: parseInt(document.getElementById('goal_pfizer').value, 10) || 0,
+    goal_eyes: parseInt(document.getElementById('goal_eyes').value, 10) || 0,
+    adj_hanlim_cut: parseInt(document.getElementById('adj_hanlim_cut').value, 10) || 0,
+    adj_hanlim_mod: parseInt(document.getElementById('adj_hanlim_mod').value, 10) || 0,
+    adj_eyes_cut: parseInt(document.getElementById('adj_eyes_cut').value, 10) || 0,
+    adj_eyes_mod: parseInt(document.getElementById('adj_eyes_mod').value, 10) || 0
   };
 
   updateDashboard(m);
 
-  // 마지막 업데이트 시간 갱신
   const now = new Date();
   const timeStr = now.getFullYear() + '-' +
     String(now.getMonth()+1).padStart(2,'0') + '-' +
@@ -624,6 +781,7 @@ function saveNow() {
     String(now.getSeconds()).padStart(2,'0');
   document.getElementById('last-update').textContent = timeStr;
   localStorage.setItem('lastSaveTime', timeStr);
+  localStorage.setItem('savedData_' + m, JSON.stringify(savedData[m]));
 }
 
 // 대시보드 업데이트
@@ -631,16 +789,54 @@ function updateDashboard(m) {
   const d = savedData[m];
   if (!d) return;
 
-  // 한림 계산
-  const hanlimGoal = d.goal_hanlim + d.goal_pfizer;
-  const hanlimActual = d.pt_hanrim + d.d_jeyak_jeonil + d.d_jeyak_maljil - d.d_jeyak_return + d.d_ms_jeonil + d.d_ms_maljil - d.d_ms_return;
+  const mg = monthGoals[m];
+  const hanlimBaseGoal = mg ? ((mg.hanlim || 0) + (mg.pfizer || 0)) : ((d.goal_hanlim || 0) + (d.goal_pfizer || 0));
+  const eyesBaseGoal = mg ? (mg.eyes || 0) : (d.goal_eyes || 0);
+
+  const hanlimCut = d.adj_hanlim_cut || 0;
+  const eyesCut = d.adj_eyes_cut || 0;
+
+  const hanlimGoal = hanlimCut > 0 ? (hanlimBaseGoal - hanlimCut) : hanlimBaseGoal;
+  const eyesGoal = eyesCut > 0 ? (eyesBaseGoal - eyesCut) : eyesBaseGoal;
+
+  const noticeEl = document.getElementById('notice-bar') || document.querySelector('.notice');
+  if (noticeEl) {
+    const lines = [];
+    if (hanlimCut > 0) {
+      const baseA = Math.round(hanlimBaseGoal / 100000000);
+      const adjA = Math.round(hanlimGoal / 100000000);
+      const cutA = Math.round(hanlimCut / 100000000);
+      lines.push('📍 ' + m + '월 목표 조정: 한림 목표가 ' + cutA + '억 감소되었습니다. (기본목표 ' + baseA + '억 → 수정목표 ' + adjA + '억)');
+    }
+    if (eyesCut > 0) {
+      const baseA = Math.round(eyesBaseGoal / 100000000);
+      const adjA = Math.round(eyesGoal / 100000000);
+      const cutA = Math.round(eyesCut / 100000000);
+      lines.push('📍 ' + m + '월 목표 조정: 눈건강 목표가 ' + cutA + '억 감소되었습니다. (기본목표 ' + baseA + '억 → 수정목표 ' + adjA + '억)');
+    }
+
+    if (lines.length > 0) {
+      noticeEl.innerHTML = lines.join('<br>');
+      noticeEl.style.display = 'block';
+    } else {
+      noticeEl.innerHTML = '';
+      noticeEl.style.display = 'none';
+    }
+  }
+
+  const hanlimActual = (d.pt_hanrim || 0) +
+    (d.d_jeyak_jeonil || 0) + (d.d_jeyak_maljil || 0) - (d.d_jeyak_return || 0) +
+    (d.d_ms_jeonil || 0) + (d.d_ms_maljil || 0) - (d.d_ms_return || 0);
+  const eyesActual = (d.pt_eyes || 0) + (d.d_eyes_jeonil || 0) + (d.d_eyes_maljil || 0) - (d.d_eyes_return || 0);
+
   const hanlimRemain = hanlimGoal - hanlimActual;
+  const eyesRemain = eyesGoal - eyesActual;
   const hanlimPct = hanlimGoal > 0 ? Math.round((hanlimActual / hanlimGoal) * 100) : 0;
+  const eyesPct = eyesGoal > 0 ? Math.round((eyesActual / eyesGoal) * 100) : 0;
 
-  document.getElementById('ds_hanrim_goal').innerHTML = Math.round(hanlimGoal/1000).toLocaleString() + '<span class="sum-val sm">≈' + (hanlimGoal/100000000).toFixed(2) + '억</span>';
-  document.getElementById('ds_hanrim_actual').innerHTML = Math.round(hanlimActual/1000).toLocaleString() + '<span class="sum-val sm">≈' + (hanlimActual/100000000).toFixed(2) + '억</span>';
-  document.getElementById('ds_hanrim_remain').innerHTML = Math.round(Math.abs(hanlimRemain)/1000).toLocaleString() + '<span class="sum-val sm">≈' + (Math.abs(hanlimRemain)/100000000).toFixed(2) + '억</span>';
-
+  document.getElementById('ds_hanrim_goal').innerHTML = fmtWon(hanlimGoal);
+  document.getElementById('ds_hanrim_actual').innerHTML = fmtWon(hanlimActual);
+  document.getElementById('ds_hanrim_remain').innerHTML = fmtWon(Math.abs(hanlimRemain));
   const hanlimRemainEl = document.getElementById('ds_hanrim_remain');
   hanlimRemainEl.classList.remove('deficit', 'surplus');
   if (hanlimRemain > 0) {
@@ -648,20 +844,12 @@ function updateDashboard(m) {
   } else if (hanlimRemain < 0) {
     hanlimRemainEl.classList.add('surplus');
   }
-
   document.getElementById('ds_hanrim_bar').style.width = hanlimPct + '%';
   document.getElementById('ds_hanrim_bar').querySelector('.pgtxt').textContent = hanlimPct + '%';
 
-  // 눈건강 계산
-  const eyesGoal = d.goal_eyes;
-  const eyesActual = d.pt_eyes + d.d_eyes_jeonil + d.d_eyes_maljil - d.d_eyes_return;
-  const eyesRemain = eyesGoal - eyesActual;
-  const eyesPct = eyesGoal > 0 ? Math.round((eyesActual / eyesGoal) * 100) : 0;
-
-  document.getElementById('ds_eyes_goal').innerHTML = Math.round(eyesGoal/1000).toLocaleString() + '<span class="sum-val sm">≈' + (eyesGoal/100000000).toFixed(2) + '억</span>';
-  document.getElementById('ds_eyes_actual').innerHTML = Math.round(eyesActual/1000).toLocaleString() + '<span class="sum-val sm">≈' + (eyesActual/100000000).toFixed(2) + '억</span>';
-  document.getElementById('ds_eyes_remain').innerHTML = Math.round(Math.abs(eyesRemain)/1000).toLocaleString() + '<span class="sum-val sm">≈' + (Math.abs(eyesRemain)/100000000).toFixed(2) + '억</span>';
-
+  document.getElementById('ds_eyes_goal').innerHTML = fmtWon(eyesGoal);
+  document.getElementById('ds_eyes_actual').innerHTML = fmtWon(eyesActual);
+  document.getElementById('ds_eyes_remain').innerHTML = fmtWon(Math.abs(eyesRemain));
   const eyesRemainEl = document.getElementById('ds_eyes_remain');
   eyesRemainEl.classList.remove('deficit', 'surplus');
   if (eyesRemain > 0) {
@@ -669,85 +857,46 @@ function updateDashboard(m) {
   } else if (eyesRemain < 0) {
     eyesRemainEl.classList.add('surplus');
   }
-
   document.getElementById('ds_eyes_bar').style.width = eyesPct + '%';
   document.getElementById('ds_eyes_bar').querySelector('.pgtxt').textContent = eyesPct + '%';
-
-  // 사업부별 현황 업데이트
-  document.getElementById('ds_dept_hanrim_goal').innerHTML = Math.round(hanlimGoal/1000).toLocaleString() + ' <span style="font-size:12px;color:#9ca3af">≈' + (hanlimGoal/100000000).toFixed(2) + '억</span>';
-  document.getElementById('ds_dept_hanrim_actual').innerHTML = Math.round(hanlimActual/1000).toLocaleString() + ' <span style="font-size:12px;color:#9ca3af">≈' + (hanlimActual/100000000).toFixed(2) + '억</span>';
-  document.getElementById('ds_dept_hanrim_pct').textContent = hanlimPct + '%';
-
-  document.getElementById('ds_dept_eyes_goal').innerHTML = Math.round(eyesGoal/1000).toLocaleString() + ' <span style="font-size:12px;color:#9ca3af">≈' + (eyesGoal/100000000).toFixed(2) + '억</span>';
-  document.getElementById('ds_dept_eyes_actual').innerHTML = Math.round(eyesActual/1000).toLocaleString() + ' <span style="font-size:12px;color:#9ca3af">≈' + (eyesActual/100000000).toFixed(2) + '억</span>';
-  document.getElementById('ds_dept_eyes_pct').textContent = eyesPct + '%';
 
   const totalGoal = hanlimGoal + eyesGoal;
   const totalActual = hanlimActual + eyesActual;
   const totalPct = totalGoal > 0 ? Math.round((totalActual / totalGoal) * 100) : 0;
 
-  document.getElementById('ds_dept_total_goal').innerHTML = Math.round(totalGoal/1000).toLocaleString() + ' <span style="font-size:12px;color:#9ca3af">≈' + (totalGoal/100000000).toFixed(2) + '억</span>';
-  document.getElementById('ds_dept_total_actual').innerHTML = Math.round(totalActual/1000).toLocaleString() + ' <span style="font-size:12px;color:#9ca3af">≈' + (totalActual/100000000).toFixed(2) + '억</span>';
+  document.getElementById('ds_dept_hanrim_goal').innerHTML = fmtWon(hanlimGoal);
+  document.getElementById('ds_dept_hanrim_actual').innerHTML = fmtWon(hanlimActual);
+  document.getElementById('ds_dept_hanrim_pct').textContent = hanlimPct + '%';
+  document.getElementById('ds_dept_eyes_goal').innerHTML = fmtWon(eyesGoal);
+  document.getElementById('ds_dept_eyes_actual').innerHTML = fmtWon(eyesActual);
+  document.getElementById('ds_dept_eyes_pct').textContent = eyesPct + '%';
+  document.getElementById('ds_dept_total_goal').innerHTML = fmtWon(totalGoal);
+  document.getElementById('ds_dept_total_actual').innerHTML = fmtWon(totalActual);
   document.getElementById('ds_dept_total_pct').textContent = totalPct + '%';
 
-  // 달성률 바 업데이트
   document.getElementById('ds_bar_total').textContent = totalPct + '%';
   document.getElementById('ds_bar_total_fill').style.width = totalPct + '%';
   document.getElementById('ds_bar_total_fill').querySelector('.pgtxt').textContent = totalPct + '%';
-
   document.getElementById('ds_bar_hanrim').textContent = hanlimPct + '%';
   document.getElementById('ds_bar_hanrim_fill').style.width = hanlimPct + '%';
   document.getElementById('ds_bar_hanrim_fill').querySelector('.pgtxt').textContent = hanlimPct + '%';
-
   document.getElementById('ds_bar_eyes').textContent = eyesPct + '%';
   document.getElementById('ds_bar_eyes_fill').style.width = eyesPct + '%';
   document.getElementById('ds_bar_eyes_fill').querySelector('.pgtxt').textContent = eyesPct + '%';
 
-  // 말일결재 섹션 업데이트
-  function fmtCh(v) {
-    if (!v) return '0';
-    var cheon = Math.round(v / 1000).toLocaleString();
-    var eok = (v / 100000000).toFixed(2);
-    return cheon + '<span style="font-size:12px;color:#9ca3af"> ≈' + eok + '억</span>';
-  }
-  document.getElementById('ds_jeyak_jeonil').innerHTML = fmtCh(d.d_jeyak_jeonil);
-  document.getElementById('ds_jeyak_maljil').innerHTML = fmtCh(d.d_jeyak_maljil);
-  document.getElementById('ds_jeyak_return').innerHTML = fmtCh(d.d_jeyak_return);
-  document.getElementById('ds_ms_jeonil').innerHTML = fmtCh(d.d_ms_jeonil);
-  document.getElementById('ds_ms_maljil').innerHTML = fmtCh(d.d_ms_maljil);
-  document.getElementById('ds_ms_return').innerHTML = fmtCh(d.d_ms_return);
-  document.getElementById('ds_eyes_jeonil_d').innerHTML = fmtCh(d.d_eyes_jeonil);
-  document.getElementById('ds_eyes_maljil_d').innerHTML = fmtCh(d.d_eyes_maljil);
-  document.getElementById('ds_eyes_return_d').innerHTML = fmtCh(d.d_eyes_return);
+  document.getElementById('ds_jeyak_jeonil').innerHTML = fmtWon(d.d_jeyak_jeonil || 0);
+  document.getElementById('ds_jeyak_maljil').innerHTML = fmtWon(d.d_jeyak_maljil || 0);
+  document.getElementById('ds_jeyak_return').innerHTML = fmtWon(d.d_jeyak_return || 0);
+  document.getElementById('ds_ms_jeonil').innerHTML = fmtWon(d.d_ms_jeonil || 0);
+  document.getElementById('ds_ms_maljil').innerHTML = fmtWon(d.d_ms_maljil || 0);
+  document.getElementById('ds_ms_return').innerHTML = fmtWon(d.d_ms_return || 0);
+  document.getElementById('ds_eyes_jeonil_d').innerHTML = fmtWon(d.d_eyes_jeonil || 0);
+  document.getElementById('ds_eyes_maljil_d').innerHTML = fmtWon(d.d_eyes_maljil || 0);
+  document.getElementById('ds_eyes_return_d').innerHTML = fmtWon(d.d_eyes_return || 0);
 
-  // 월 표시 업데이트
   document.getElementById('cur-month-text').textContent = m + '월';
-
-  // 목표 조회 헤더 업데이트
-  const g = monthGoals[m];
-  if (g) {
-    const hanlimMok = Math.round(g.hanlim / 100000);
-    const pfizerMok = Math.round(g.pfizer / 100000);
-    const eyesMok = Math.round(g.eyes / 100000);
-    const totalMok = hanlimMok + pfizerMok;
-
-    // 현재 실적과 목표 비교해서 변경사항 표시
-    let changeMsg = '';
-    if (m === 10) {
-      changeMsg = '한림 목표가 14억 감소되었습니다. (기본목표 264억 → 수정목표 250억)';
-    }
-
-    const noticeEl = document.querySelector('.notice');
-    if (noticeEl) {
-      noticeEl.textContent = '📍 ' + m + '월 목표 조정: ' + changeMsg;
-    }
-  }
 }
 
-// 초기화
-window.onload = function() {
-  loadMonthGoals();
-};
 
 function logout() {
     localStorage.removeItem('hanlim_login');
@@ -861,8 +1010,14 @@ window.addEventListener('DOMContentLoaded', function() {
                 const el = document.getElementById(elId);
                 if (el && d[key]) el.value = d[key];
             });
-            if (d.adj_hanlim_cut) { document.getElementById('adj_hanlim_cut').value = d.adj_hanlim_cut; syncAdj('hanlim','cut'); }
-            if (d.adj_eyes_cut)   { document.getElementById('adj_eyes_cut').value   = d.adj_eyes_cut;   syncAdj('eyes','cut'); }
+            if (d.adj_hanlim_cut || d.adj_hanlim_mod) {
+                if (d.adj_hanlim_mod) { document.getElementById('adj_hanlim_mod').value = d.adj_hanlim_mod; syncAdj('hanlim','mod'); }
+                else { document.getElementById('adj_hanlim_cut').value = d.adj_hanlim_cut; syncAdj('hanlim','cut'); }
+            }
+            if (d.adj_eyes_cut || d.adj_eyes_mod) {
+                if (d.adj_eyes_mod) { document.getElementById('adj_eyes_mod').value = d.adj_eyes_mod; syncAdj('eyes','mod'); }
+                else { document.getElementById('adj_eyes_cut').value = d.adj_eyes_cut; syncAdj('eyes','cut'); }
+            }
             updateDashboard(currentMonth);
         }
     }
