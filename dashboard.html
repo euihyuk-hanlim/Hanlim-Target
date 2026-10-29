@@ -559,7 +559,6 @@ function changePassword() {
 
 <script>
 // ── 메인 대시보드 JS ──────────────────────────────────────────────
-<script>
 const currentMonth = 10;
 const monthGoals = {"1": {"hanlim": 20802000000, "pfizer": 2500000000, "eyes": 5200000000}, "2": {"hanlim": 19902000000, "pfizer": 2000000000, "eyes": 5200000000}, "3": {"hanlim": 21300000000, "pfizer": 2360000000, "eyes": 5600000000}, "4": {"hanlim": 21800000000, "pfizer": 2450000000, "eyes": 6500000000}, "5": {"hanlim": 20590000000, "pfizer": 2250000000, "eyes": 6400000000}, "6": {"hanlim": 21970000000, "pfizer": 2400000000, "eyes": 5900000000}, "7": {"hanlim": 23760000000, "pfizer": 2650000000, "eyes": 6000000000}, "8": {"hanlim": 21260000000, "pfizer": 2090000000, "eyes": 6000000000}, "9": {"hanlim": 23268000000, "pfizer": 2300000000, "eyes": 6100000000}, "10": {"hanlim": 23648000000, "pfizer": 2550000000, "eyes": 6000000000}, "11": {"hanlim": 24110000000, "pfizer": 2100000000, "eyes": 5500000000}, "12": {"hanlim": 23550000000, "pfizer": 1850000000, "eyes": 5600000000}};
 
@@ -569,8 +568,9 @@ let savedData = {};
 function switchTab(e, pane) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
   document.querySelectorAll('.pane').forEach(p => p.classList.remove('on'));
-  e.target.classList.add('on');
-  document.getElementById('pane-' + pane).classList.add('on');
+  e.currentTarget.classList.add('on');
+  const paneEl = document.getElementById('pane-' + pane);
+  if (paneEl) paneEl.classList.add('on');
 }
 
 // 월 선택 시 목표값 로드
